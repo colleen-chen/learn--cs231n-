@@ -6,10 +6,108 @@ import numpy as np
 import matplotlib.pyplot as plt
 #from past.builtins import xrange
 
+class forward_backward_propogation(object):
+    
+    def __init__(self, W1, b1, W2, b2, X=0):
+        """
+        Only for two layer neural net
+        """
+        # get dimensions of nodes at each layer
+        self.X = X
+
+        self.X = 0.0                                                  # dim (N0, D)
+        self.W1 = W1                                                  # dim (D, N1)   
+        self.b1 = b1                                                  # dim (1, N1)
+        self.z1 = 0.0                                                 # dim (N0, N1)
+        self.a1 = 0.0                                                 # dim (N0, N1)
+        self.W2 = W2                                                  # dim (N1, N2)
+        self.b2 = b2                                                  # dim (1, N2)
+        self.z2 = 0.0                                                 # dim (N0, N2)
+        self.a2 = 0.0                                                 # dim (N0, N2)
+        self.dz1 = 0.0                                                # dim (N0, N1)
+        self.dW1 = 0.0                                                # dim (D, N1)
+        self.db1 = 0.0                                                # dim (1, N1)  
+        self.da1 = 0.0                                                # dim (N0, N2)
+        self.dz2 = 0.0                                                # dim (N0, N2)
+        self.dW2 = 0.0                                                # dim (N1, N2)
+        self.db2 = 0.0                                                # dim (1, N2)
+        self.da2 = 1.0
+
+    def start(self, X):
+        print('at start : {}'.format(X))
+        self.X = X             
+        
+        N0 = self.X.shape[0]
+        D = self.X.shape[1]
+        N1 = self.W1.shape[1]
+        N2 = self.W2.shape[1]
+
+        print('before setting z1')
+        self.z1 = np.zeros((N0, N1))                                  # dim (N0, N1)</font>
+        self.a1 = np.zeros((N0, N1))                                  # dim (N0, N1)</font>
+        self.z2 = np.zeros((N0, N2))                                  # dim (N0, N2)</font>
+        self.a2 = np.zeros((N0, N2))                                  # dim (N0, N2)</font>
+        self.dz1 = np.zeros((N0, N1))                                 # dim (N0, N1)</font>
+        self.dW1 = np.zeros((D, N1))                                  # dim (D, N1)</font>
+        self.db1 = np.zeros((1, N1))                                  # dim (1, N1)  </font>
+        self.da1 = np.zeros((N0, N2))                                 # dim (N0, N2)</font>
+        self.dz2 = np.zeros((N0, N2))                                 # dim (N0, N2)</font>
+        self.dW2 = np.zeros((N1, N2))                                 # dim (N1, N2)</font>
+        self.db2 = np.zeros((1, N2))                                  # dim (1, N2)</font>
+        self.da2 = 1.0
+
+    def forward_scores(self, X, W, b):
+        """
+        X:  Input features; has shape (N, D)
+        W: First layer weights; has shape (D, H)
+        b: First layer biases; has shape (1, H)
+        z: output matrix; has shape (N, H)
+        """
+        z = X.dot(W) + b
+        return z
+
+    def backward_scores(self, dz):
+        dW = self.X.T.dot(dz)
+        db = dz
+        return (dW, db)
+
+    def forward_activation_softmax(self, z, y=None):
+        """
+        z:  scores matrix; has shape (N, H)
+        y:  actual labels; has shape (1, H)
+        """
+        f = np.exp(z)
+        # summing over all hidden nodes H in the layer
+        sum_f = np.sum(f, axis=1).reshape(-1,1)
+        # activation function - softmax
+        a = np.zeros((z.shape[0], z.shape[1]))
+        return np.exp(z) / sum_f
+
+    def backward_activation_softmax(self, da, a):
+        grad_dadz = a - a * a
+        return grad_dadz.dot(da)
+
+    def forward_activation_ReLU(self, z):
+        return np.maximum(0, z)
+    
+    def backward_activation_ReLU(self, da, a):
+        result = np.zeros((a.shape[0], a.shape[1]))
+        for i in range(len(a)):
+            for j in range(len(a[i])):
+                if a[i,j] > 0.0:
+                    result[i,j] = 1.0
+                else:
+                    result[i,j] = 0.0
+
+        return result.dot(da)
+
 def func_sigmold(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 def func_softmax(x, i):
+    """
+    one dimensional x
+    """
     f = np.exp(x)
     sum_f = np.sum(f, axis=1).reshape(-1,1)
     return np.exp(x[i]) / sum_f
@@ -50,6 +148,8 @@ class TwoLayerNet(object):
         self.params['b1'] = np.zeros(hidden_size)
         self.params['W2'] = std * np.random.randn(hidden_size, output_size)
         self.params['b2'] = np.zeros(output_size)
+        self.twolayerNN = forward_backward_propogation(self.params['W1'], self.params['b1'],
+                                                       self.params['W2'], self.params['b2'])
 
     def loss(self, X, y=None, reg=0.0):
         """
@@ -75,33 +175,28 @@ class TwoLayerNet(object):
           with respect to the loss function; has the same keys as self.params.
         """
         # Unpack variables from the params dictionary
-        W1, b1 = selff = np.exp(scores_1)
- 92         sum_f = np.sum(f, axis=1).reshape(-1,1)
- 93         a_1 = np.exp(scores_1) / sum_f
-.params['W1'], self.params['b1']
+        W1, b1 = self.params['W1'], self.params['b1']
         W2, b2 = self.params['W2'], self.params['b2']
         N, D = X.shape
 
         # Compute the forward pass
         scores = None
+        self.twolayerNN.start(X)
         #############################################################################
         # DONE: Perform the forward pass, computing the class scores for the input. #
         # Store the result in the scores variable, which should be an array of      #
         # shape (N, C).                                                             #
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-        # the scores at 1st layer, with dimension (N, H)
-        scores_1 = X.dot(W1) + b1
-        # function a_1 at 1st layer after applying activation function softmax
-        f = np.exp(scores_1)
-        sum_f = np.sum(f, axis=1).reshape(-1,1)
-        a_1 = np.exp(scores_1) / sum_f
+        # the score at 1st layer, with dimension (N, H)
+        self.twolayerNN.z1 = self.twolayerNN.forward_scores(X, W1, b1)
+        # activation a_1 at 1st layer after applying activation function softmax
+        self.twolayerNN.a1 = self.twolayerNN.forward_activation_softmax(self.twolayerNN.z1)
         # the scores at 2nd layer, with dimension (H, C)
-        scores_2 = a_1.dot(W2) + b2
+        self.twolayerNN.z2 = self.twolayerNN.forward_scores(self.twolayerNN.a1, W2, b2)
         # function a_2 at 2nd layer after applying activation function
-        base_2 = np.zeros((scores_2.shape[0], scores_2.shape[1]))
-        a_2 = np.maximum(base_2, scores_2)
-        scores = a_2
+        self.twolayerNN.a2 = self.twolayerNN.forward_activation_ReLU(self.twolayerNN.z2)
+        scores = self.twolayerNN.a2
         #pass
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -119,10 +214,12 @@ class TwoLayerNet(object):
         # classifier loss.                                                          #
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-        # first hidden layer, using sigmold activation function 
-        h1 = func_sigmold(np.dot(X1,W1) + b1)
-        output = np.dot(h1,W2) + b2
-        loss = np.sum(np.square(output - y), axis=0) + reg * np.dot(W.T,W)
+        # first hidden layer, using sigmold activation function
+        lambda1 = 0.0
+        lambda2 = 0.0
+        loss = np.sum(((-1.0)*y.dot(np.log(scores)) - (1 - y).dot(np.log(abs( - scores)))), axis=0) + \
+                    lambda1*np.sum(np.sum(W1.T.dot(W1), axis=1), axis=0) + \
+                    lambda2*np.sum(np.sum(W2.T.dot(W2), axis=1), axis=0)
 
         #pass
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -136,11 +233,24 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         # backward propogation
-        grad_y_pred = 2.0 * (output - y) + 2.0*reg*W 
-        grad_h1 = h1.T.dot(grad_y_pred)
-        grad_w2 = grad_y_pred.dot(w2.T)
-        grad_w1 = x.T.dot(grad_h1) * h1 * (1-h1)
+        # gradient of a_2
+ #       self.twolayerNN.da2 = 
+        # gradient of z2
+        self.twolayerNN.dz2 = self.twolayerNN.backward_activation_ReLU(self.twolayerNN.da2, self.twolayerNN.a2)
+        # gradient dW2, db2
+        self.twolayerNN.dW2, self.twolayerNN.db2 = self.twolayerNN.backward_scores(self.twolayerNN.dz2)
 
+        # gradient of a1
+        self.twolayerNN.da1 = W2
+        # gradient of z1
+        self.twolayerNN.dz1 = self.twolayerNN.backward_activation_softmax(self.twolayerNN.da1, self.twolayerNN.a1) 
+        # gradient of dW1, db1
+        self.twolayerNN.dW1, self.twolayerNN.db1 = self.twolayerNN.backward_scores(self.twolayerNN.dz1)
+        
+        grads['W1'] = self.twolayerNN.dW1
+        grads['b1'] = self.twolayerNN.db1
+        grads['W2'] = self.twolayerNN.dW2
+        grads['b2'] = self.twolayerNN.db2
         #pass
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -181,7 +291,7 @@ class TwoLayerNet(object):
             y_batch = None
 
             #########################################################################
-            # TODO: Create a random minibatch of training data and labels, storing  #
+            # TODO Create a random minibatch of training data and labels, storing  # 
             # them in X_batch and y_batch respectively.                             #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****

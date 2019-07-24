@@ -5,6 +5,7 @@ from builtins import object
 import numpy as np
 import matplotlib.pyplot as plt
 #from past.builtins import xrange
+from sklearn.utils import shuffle
 
 class forward_backward_propogation(object):
     
@@ -13,9 +14,8 @@ class forward_backward_propogation(object):
         Only for two layer neural net
         """
         # get dimensions of nodes at each layer
-        self.X = X
 
-        self.X = 0.0                                                  # dim (N0, D)
+        self.X = X                                                    # dim (N0, D)
         self.W1 = W1                                                  # dim (D, N1)   
         self.b1 = b1                                                  # dim (1, N1)
         self.z1 = 0.0                                                 # dim (N0, N1)
@@ -32,9 +32,10 @@ class forward_backward_propogation(object):
         self.dW2 = 0.0                                                # dim (N1, N2)
         self.db2 = 0.0                                                # dim (1, N2)
         self.da2 = 1.0
+        self.loss = 0.0
+        self.grads = {}
 
     def start(self, X):
-        print('at start : {}'.format(X))
         self.X = X             
         
         N0 = self.X.shape[0]
@@ -42,7 +43,6 @@ class forward_backward_propogation(object):
         N1 = self.W1.shape[1]
         N2 = self.W2.shape[1]
 
-        print('before setting z1')
         self.z1 = np.zeros((N0, N1))                                  # dim (N0, N1)</font>
         self.a1 = np.zeros((N0, N1))                                  # dim (N0, N1)</font>
         self.z2 = np.zeros((N0, N2))                                  # dim (N0, N2)</font>
@@ -50,11 +50,39 @@ class forward_backward_propogation(object):
         self.dz1 = np.zeros((N0, N1))                                 # dim (N0, N1)</font>
         self.dW1 = np.zeros((D, N1))                                  # dim (D, N1)</font>
         self.db1 = np.zeros((1, N1))                                  # dim (1, N1)  </font>
-        self.da1 = np.zeros((N0, N2))                                 # dim (N0, N2)</font>
+        self.da1 = np.zeros((N0, N1))                                 # dim (N0, N2)</font>
         self.dz2 = np.zeros((N0, N2))                                 # dim (N0, N2)</font>
         self.dW2 = np.zeros((N1, N2))                                 # dim (N1, N2)</font>
         self.db2 = np.zeros((1, N2))                                  # dim (1, N2)</font>
         self.da2 = 1.0
+        self.loss = 1.0
+        self.grads = {}
+        self.grads['W1'] = self.dW1
+        self.grads['b1'] = self.db1
+        self.grads['W2'] = self.dW2
+        self.grads['b2'] = self.db2
+
+    def refresh():
+        """
+        reset list values to 0.0
+        """
+        self.z1 *= 0.0                      
+        self.a1 *= 0.0                            
+        self.z2 *= 0.0                             
+        self.a2 *= 0.0                         
+        self.dz1 *= 0.0                            
+        self.dW1 *= 0.0           
+        self.db1 *= 0.0                         
+        self.da1 *= 0.0                    
+        self.dz2 *= 0.0                    
+        self.dW2 *= 0.0                
+        self.db2 *= 0.0                     
+        self.da2 *= 0.0
+        self.loss *= 0.0
+        self.grads['W1'] *= 0.0
+        self.grads['b1'] *= 0.0
+        self.grads['W2'] *= 0.0
+        self.grads['b2'] *= 0.0
 
     def forward_scores(self, X, W, b):
         """
@@ -63,11 +91,11 @@ class forward_backward_propogation(object):
         b: First layer biases; has shape (1, H)
         z: output matrix; has shape (N, H)
         """
-        z = X.dot(W) + b
+        z = X.dot(W) + b.reshape(1, -1)
         return z
 
-    def backward_scores(self, dz):
-        dW = self.X.T.dot(dz)
+    def backward_scores(self, X, dz):
+        dW = X.T.dot(dz)
         db = dz
         return (dW, db)
 
@@ -84,7 +112,8 @@ class forward_backward_propogation(object):
         return np.exp(z) / sum_f
 
     def backward_activation_softmax(self, da, a):
-        grad_dadz = a - a * a
+        mat_id = np.identity(n=(a.shape[1]))
+        grad_dadz = a*mat_id - a.T.dot(a)
         return grad_dadz.dot(da)
 
     def forward_activation_ReLU(self, z):
@@ -99,18 +128,26 @@ class forward_backward_propogation(object):
                 else:
                     result[i,j] = 0.0
 
-        return result.dot(da)
+        return (result * da)
 
 def func_sigmold(x):
     return 1.0 / (1.0 + np.exp(-x))
 
-def func_softmax(x, i):
+def func_softmax(x, y=None):
     """
     one dimensional x
     """
     f = np.exp(x)
     sum_f = np.sum(f, axis=1).reshape(-1,1)
-    return np.exp(x[i]) / sum_f
+    if y is None:
+        return (f / sum_f)
+
+    n_datasample = len(y)
+    result = np.zeros(n_datasample)
+    for i in range(n_datasample):
+        result[i] = np.exp(x[i, y[i]]) / sum_f[i]
+
+    return result
 
 class TwoLayerNet(object):
     """
@@ -149,7 +186,7 @@ class TwoLayerNet(object):
         self.params['W2'] = std * np.random.randn(hidden_size, output_size)
         self.params['b2'] = np.zeros(output_size)
         self.twolayerNN = forward_backward_propogation(self.params['W1'], self.params['b1'],
-                                                       self.params['W2'], self.params['b2'])
+                self.params['W2'], self.params['b2'])
 
     def loss(self, X, y=None, reg=0.0):
         """
@@ -191,12 +228,24 @@ class TwoLayerNet(object):
         # the score at 1st layer, with dimension (N, H)
         self.twolayerNN.z1 = self.twolayerNN.forward_scores(X, W1, b1)
         # activation a_1 at 1st layer after applying activation function softmax
-        self.twolayerNN.a1 = self.twolayerNN.forward_activation_softmax(self.twolayerNN.z1)
+#       print('W1')
+#       print(W1)
+#       print('z1')
+#       print(self.twolayerNN.z1)
+        self.twolayerNN.a1 = self.twolayerNN.forward_activation_ReLU(self.twolayerNN.z1)
+#        print('a1')
+#        print(self.twolayerNN.a1)
         # the scores at 2nd layer, with dimension (H, C)
         self.twolayerNN.z2 = self.twolayerNN.forward_scores(self.twolayerNN.a1, W2, b2)
-        # function a_2 at 2nd layer after applying activation function
+#        print('W2')
+#        print(W2)
+#        print('z2') 
+#        print(self.twolayerNN.z2)
+
         self.twolayerNN.a2 = self.twolayerNN.forward_activation_ReLU(self.twolayerNN.z2)
-        scores = self.twolayerNN.a2
+#        print('a2')
+#        print(self.twolayerNN.a2)
+        scores = self.twolayerNN.z2
         #pass
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -214,13 +263,10 @@ class TwoLayerNet(object):
         # classifier loss.                                                          #
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-        # first hidden layer, using sigmold activation function
-        lambda1 = 0.0
-        lambda2 = 0.0
-        loss = np.sum(((-1.0)*y.dot(np.log(scores)) - (1 - y).dot(np.log(abs( - scores)))), axis=0) + \
-                    lambda1*np.sum(np.sum(W1.T.dot(W1), axis=1), axis=0) + \
-                    lambda2*np.sum(np.sum(W2.T.dot(W2), axis=1), axis=0)
-
+        # use softmax loss
+        loss = np.sum((-1)*np.log(func_softmax(self.twolayerNN.z2, y)), axis=0) / len(self.twolayerNN.z2) + \
+                    reg*np.sum(np.sum(W1.T.dot(W1), axis=1), axis=0) + \
+                    reg*np.sum(np.sum(W2.T.dot(W2), axis=1), axis=0)    
         #pass
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -234,19 +280,21 @@ class TwoLayerNet(object):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         # backward propogation
         # gradient of a_2
- #       self.twolayerNN.da2 = 
+        self.twolayerNN.da2 = func_softmax(self.twolayerNN.a2, None)
+         # grad       self.twolayerNN.da2 = 
         # gradient of z2
-        self.twolayerNN.dz2 = self.twolayerNN.backward_activation_ReLU(self.twolayerNN.da2, self.twolayerNN.a2)
+ #       self.twolayerNN.dz2 = self.twolayerNN.backward_activation_ReLU(self.twolayerNN.da2, self.twolayerNN.a2)
+        self.twolayerNN.dz2 = self.twolayerNN.da2
         # gradient dW2, db2
-        self.twolayerNN.dW2, self.twolayerNN.db2 = self.twolayerNN.backward_scores(self.twolayerNN.dz2)
+        self.twolayerNN.dW2, self.twolayerNN.db2 = self.twolayerNN.backward_scores(self.twolayerNN.a1, self.twolayerNN.dz2)
 
         # gradient of a1
-        self.twolayerNN.da1 = W2
+        self.twolayerNN.da1 = self.twolayerNN.dz2.dot(self.params['W2'].T)
         # gradient of z1
-        self.twolayerNN.dz1 = self.twolayerNN.backward_activation_softmax(self.twolayerNN.da1, self.twolayerNN.a1) 
+        self.twolayerNN.dz1 = self.twolayerNN.backward_activation_ReLU(self.twolayerNN.da1, self.twolayerNN.a1) 
         # gradient of dW1, db1
-        self.twolayerNN.dW1, self.twolayerNN.db1 = self.twolayerNN.backward_scores(self.twolayerNN.dz1)
-        
+        self.twolayerNN.dW1, self.twolayerNN.db1 = self.twolayerNN.backward_scores(self.twolayerNN.X, self.twolayerNN.dz1)
+
         grads['W1'] = self.twolayerNN.dW1
         grads['b1'] = self.twolayerNN.db1
         grads['W2'] = self.twolayerNN.dW2
@@ -285,18 +333,21 @@ class TwoLayerNet(object):
         loss_history = []
         train_acc_history = []
         val_acc_history = []
-
+        # randomize data point
+        X, y = shuffle(X, y)
+        batch_beg = 0
         for it in range(num_iters):
             X_batch = None
             y_batch = None
 
             #########################################################################
-            # TODO Create a random minibatch of training data and labels, storing  # 
+            # DONE Create a random minibatch of training data and labels, storing  # 
             # them in X_batch and y_batch respectively.                             #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-            pass
+            X_batch = X[batch_beg:(batch_beg+batch_size)]
+            y_batch = y[batch_beg:(batch_beg+batch_size)]
+            #pass
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -305,14 +356,20 @@ class TwoLayerNet(object):
             loss_history.append(loss)
 
             #########################################################################
-            # TODO: Use the gradients in the grads dictionary to update the         #
+            # DONE: Use the gradients in the grads dictionary to update the         #
             # parameters of the network (stored in the dictionary self.params)      #
             # using stochastic gradient descent. You'll need to use the gradients   #
             # stored in the grads dictionary defined above.                         #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-            pass
+            # update model parameters
+            self.params['W1'] = self.params['W1'] + learning_rate * grads['W1']
+            self.params['b1'] = self.params['b1'] + learning_rate * grads['b1']
+            self.params['W2'] = self.params['W2'] + learning_rate * grads['W2']
+            self.params['b2'] = self.params['b2'] + learning_rate * grads['b2']
+            batch_beg += batch_size    
+        
+            #pass
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -322,8 +379,8 @@ class TwoLayerNet(object):
             # Every epoch, check train and val accuracy and decay learning rate.
             if it % iterations_per_epoch == 0:
                 # Check accuracy
-                train_acc = (self.predict(X_batch) == y_batch).mean()
-                val_acc = (self.predict(X_val) == y_val).mean()
+                train_acc = (self.predict(X_batch) - y_batch.reshape(-1,1)).mean()
+                val_acc = (self.predict(X_val) - y_val.reshape(-1,1)).mean()
                 train_acc_history.append(train_acc)
                 val_acc_history.append(val_acc)
 
@@ -354,11 +411,18 @@ class TwoLayerNet(object):
         y_pred = None
 
         ###########################################################################
-        # TODO: Implement this function; it should be VERY simple!                #
+        # DONE: Implement this function; it should be VERY simple!                #
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        z1 = self.twolayerNN.forward_scores(X, self.params['W1'], self.params['b1'])
 
-        pass
+        a1 = self.twolayerNN.forward_activation_ReLU(z1)
+
+        z2 = self.twolayerNN.forward_scores(a1, self.params['W2'], self.params['b2'])
+
+        y_pred = z2        
+
+        #pass
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

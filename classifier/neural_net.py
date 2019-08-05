@@ -116,9 +116,10 @@ class forward_backward_propogation(object):
         f_label = f[range(n_datasample), y]
 
         grad = f / sum_f
+
         for i in range(n_datasample):
-            if y[i] != i:
-                grad[i, y[i]] = -1 + (np.exp(a[i, y[i]) / sum_f[i])
+            grad[i, y[i]] = -1 + (np.exp(a[i, y[i]]) / sum_f[i])
+
         grad = (grad * da) / n_datasample
         return grad
 
@@ -258,7 +259,7 @@ class TwoLayerNet(object):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         # the score at 1st layer, with dimension (N, H)
         self.twolayerNN.z1 = self.twolayerNN.forward_scores(X, W1, b1)
-        # activation a_1 at 1st layer after applying activation function softmax
+        # activation a_1 at 1st layer after applying activation function ReLU
         # the activation values at 1st layer, with dimension (N0, N1) 
         self.twolayerNN.a1 = self.twolayerNN.forward_activation_ReLU(self.twolayerNN.z1)
         # the scores at 2nd layer, with dimension (H, C)
@@ -298,9 +299,16 @@ class TwoLayerNet(object):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         # backward propogation
         # gradient of z2
-        self.twolayerNN.dz2 = self.twolayerNN.backward_activation_softmax(1, self.twolayerNN.a2, y)
+        self.twolayerNN.dz2 = self.twolayerNN.backward_activation_softmax(1, self.twolayerNN.z2, y)
         # gradient dW2, db2
         self.twolayerNN.dW2, self.twolayerNN.db2 = self.twolayerNN.backward_scores(self.twolayerNN.a1, self.twolayerNN.dz2)
+#        print('hideden layer')
+#        print(self.twolayerNN.a1)
+#        print('dW2')
+#        print(self.twolayerNN.dW2)
+#        print('db2')
+#        print(self.twolayerNN.db2)
+
         # gradient of a1
         self.twolayerNN.da1 = self.twolayerNN.dz2.dot(self.params['W2'].T)
         # gradient of z1
@@ -358,8 +366,9 @@ class TwoLayerNet(object):
             # them in X_batch and y_batch respectively.                             #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            X_batch = X[batch_beg:(batch_beg+batch_size)]
-            y_batch = y[batch_beg:(batch_beg+batch_size)]
+            batch_ind = np.random.choice(num_train, batch_size) 
+            X_batch = X[batch_ind]
+            y_batch = y[batch_ind]
             #pass
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -376,17 +385,18 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
             # update model parameters
-            self.params['W1'] = self.params['W1'] + learning_rate * grads['W1']
-            self.params['b1'] = self.params['b1'] + learning_rate * grads['b1']
-            self.params['W2'] = self.params['W2'] + learning_rate * grads['W2']
-            self.params['b2'] = self.params['b2'] + learning_rate * grads['b2']
+            # temporary making them to negative
+            self.params['W1'] = self.params['W1'] - learning_rate * grads['W1']
+            self.params['b1'] = self.params['b1'] - learning_rate * grads['b1']
+            self.params['W2'] = self.params['W2'] - learning_rate * grads['W2']
+            self.params['b2'] = self.params['b2'] - learning_rate * grads['b2']
             batch_beg += batch_size    
         
             #pass
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            if verbose and it % 100 == 0:
+            if verbose and it % 10 == 0:
                 print('iteration %d / %d: loss %f' % (it, num_iters, loss))
 
             # Every epoch, check train and val accuracy and decay learning rate.
@@ -428,12 +438,17 @@ class TwoLayerNet(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         z1 = self.twolayerNN.forward_scores(X, self.params['W1'], self.params['b1'])
-
+#        print('z1')
+#        print(z1)
         a1 = self.twolayerNN.forward_activation_ReLU(z1)
-
+#        print('a1')
+#        print(a1)
         z2 = self.twolayerNN.forward_scores(a1, self.params['W2'], self.params['b2'])
-
+#        print('z2')
+#        print(z2)
         y_pred = np.argmax(z2, axis=1)        
+#        print('y_pred')
+#        print(y_pred)
 
         #pass
 
